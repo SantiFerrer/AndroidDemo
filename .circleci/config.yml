@@ -1,68 +1,45 @@
 version: 2
 jobs:
   build:
-    branches:
-      only:
-        - master
-        - develop
+    working_directory: ~/code
     docker:
-      # specify the version you desire here
-      - image: circleci/android:api-27-alpha
-
+        - image: circleci/android:api-27-alpha
     environment:
-      # Customize the JVM maximum heap limit
       JVM_OPTS: -Xmx3200m
-      TERM: dumb
-
     steps:
       - checkout
-      # Download and cache dependencies
-      - run:
-          name: update android sdk
-          command: |
-              echo y | android update sdk --no-ui --all --filter tool,extra-android-m2repository,extra-google-google_play_services,extra-google-m2repository,android-26
-              echo y | android update sdk --no-ui --all --filter build-tools-26.0.1
+      - restore_cache:
+          key: jars-{{ checksum "build.gradle" }}-{{ checksum  "app/build.gradle" }}
       - run:
           name: Chmod permissions #if permission for Gradlew Dependencies fail, use this.
           command: sudo chmod +x ./gradlew
       - run:
-          name: gradle dependencies
+          name: Download Dependencies
           command: ./gradlew androidDependencies
-
-      # run unit tests!
+      - save_cache:
+          paths:
+            - ~/.gradle
+          key: jars-{{ checksum "build.gradle" }}-{{ checksum  "app/build.gradle" }}
       - run:
-          name: unit test
-          command: |
-              ./gradlew test
-              ./gradlew lint test
+          name: Setup emulator
+          command: sdkmanager "system-images;android-25;google_apis;armeabi-v7a" && echo "no" | avdmanager create avd -n test -k "system-images;android-25;google_apis;armeabi-v7a"
       - run:
-          name: Show list of system-images
-          command: sdkmanager --list --verbose | grep system-images
-
-      - run:
-          name: Setup Emulator
-          command: sdkmanager "system-images;android-21;default;armeabi-v7a" && echo "no" | avdmanager create avd -n test -k "system-images;android-21;default;armeabi-v7a"
-
-      - run:
-          name: Launch Emulator
+          name: Launch emulator
           command: export LD_LIBRARY_PATH=${ANDROID_HOME}/emulator/lib64:${ANDROID_HOME}/emulator/lib64/qt/lib && emulator64-arm -avd test -noaudio -no-boot-anim -no-window -accel on
           background: true
-
       - run:
           name: Wait emulator
           command: |
-              circle-android wait-for-boot
-              adb shell settings put global window_animation_scale 0 &
-              adb shell settings put global transition_animation_scale 0 &
-              adb shell settings put global animator_duration_scale 0 &
-              adb shell input keyevent 82 &
+            circle-android wait-for-boot
+            adb shell settings put global window_animation_scale 0 &
+            adb shell settings put global transition_animation_scale 0 &
+            adb shell settings put global animator_duration_scale 0 &
+            adb shell input keyevent 82 &
       - run:
-          name: Run UI test
+          name: Run Tests
           command: ./gradlew connectedAndroidTest
-
-      - store_test_results:
-          path: example/build/test-results
-
       - store_artifacts:
-          path: example/build/reports
+          path: app/build/reports
           destination: reports
+      - store_test_results:
+          path: app/build/test-results
