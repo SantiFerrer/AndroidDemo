@@ -15,8 +15,8 @@ jobs:
       TERM: dumb
 
     steps:
-    - checkout
-	- run:
+      - checkout
+	  - run:
           name: Chmod permissions #if permission for Gradlew 		Dependencies fail, use this. 
           command: sudo chmod +x ./gradlew
 
